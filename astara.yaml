@@ -4,3 +4,5 @@ astara:
 
 keystone:
     openstack-origin: cloud:trusty-liberty
+neutron-api:
+    openstack-origin: cloud:trusty-liberty

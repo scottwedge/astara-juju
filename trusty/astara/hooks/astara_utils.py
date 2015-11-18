@@ -63,7 +63,10 @@ CONSOLE_SCRIPTS = [
     'astara-pez-service',
 ]
 
-PACKAGES = []
+PACKAGES = [
+    'python-glanceclient'
+    'python-neutronclient',
+]
 
 BASE_GIT_PACKAGES = [
     'libffi-dev',

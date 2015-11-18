@@ -126,6 +126,24 @@ def keystone_changed():
     #configure_https()
 
 
+@hooks.hook('amqp-relation-joined')
+def amqp_joined(relation_id=None):
+    relation_set(
+        relation_id=relation_id,
+        username=config('rabbit-user'),
+        vhost=config('rabbit-vhost'))
+
+
+@hooks.hook('amqp-relation-changed')
+@hooks.hook('amqp-relation-departed')
+@restart_on_change(restart_map())
+def amqp_changed():
+    if 'amqp' not in CONFIGS.complete_contexts():
+        juju_log('amqp relation incomplete. Peer not ready?')
+        return
+    CONFIGS.write(ASTARA_CONFIG)
+
+
 @hooks.hook('config-changed')
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
