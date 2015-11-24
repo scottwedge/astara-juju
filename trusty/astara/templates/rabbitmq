@@ -1,3 +1,0 @@
-{% if rabbitmq_host -%}
-amqp_url = amqp://{{ rabbitmq_user }}:{{ rabbitmq_password }}@{{ rabbitmq_host }}:/{{ rabbimq_virtual_host }}
-{% endif -%}

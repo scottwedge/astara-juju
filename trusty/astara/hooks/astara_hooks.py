@@ -39,6 +39,7 @@ from charmhelpers.core.host import (
 
 
 from astara_utils import (
+    create_management_network,
     determine_packages,
     migrate_database,
     register_configs,
@@ -108,9 +109,8 @@ def keystone_joined(relation_id=None):
         'region': config('region'),
         'public_url': public_url,
         'admin_url': admin_url,
-        'internal_url': internal_url, }
-
-    print relation_data
+        'internal_url': internal_url,
+    }
     relation_set(relation_id=relation_id, **relation_data)
 
 
@@ -157,6 +157,19 @@ def config_changed():
     status_set('maintenance', 'Configuring Astara')
     CONFIGS.write_all()
 
+
+@hooks.hook('neutron-api-relation-changed')
+@restart_on_change(restart_map(), stopstart=True)
+def neutron_api_changed(rid=None):
+    api_ready = relation_get('neutron-api-ready')
+    if not api_ready:
+        return
+    if api_ready.lower() != 'yes':
+        return
+    create_management_network()
+    CONFIGS.write_all()
+
+
 @hooks.hook('install')
 def install():
     status_set('maintenance', 'Installing Dependencies')
@@ -170,7 +183,7 @@ def main():
     try:
         hooks.execute(sys.argv)
     except UnregisteredHookError as e:
-        log('Unknown hook {} - skipping.'.format(e))
+        juju_log('Unknown hook {} - skipping.'.format(e))
 #    set_os_workload_status(CONFIGS, REQUIRED_INTERFACES,
 #                           charm_func=check_optional_relations)
 #

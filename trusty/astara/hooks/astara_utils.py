@@ -12,6 +12,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import json
+import netaddr
 import os
 import subprocess
 
@@ -19,13 +21,20 @@ from collections import OrderedDict
 
 from charmhelpers.contrib.openstack import context, templating
 
+from neutronclient.v2_0 import client as NeutronClient
+
+import astara_context
 
 from charmhelpers.contrib.openstack.utils import (
     git_install_requested,
 )
 
 
-from charmhelpers.core.hookenv import charm_dir
+from charmhelpers.core.hookenv import (
+    charm_dir,
+    config,
+    log as juju_log
+)
 
 from charmhelpers.core.host import (
     adduser,
@@ -54,6 +63,7 @@ from charmhelpers.core.templating import render
 
 TEMPLATES = 'templates/'
 ASTARA_CONFIG = '/etc/astara/orchestrator.ini'
+ASTARA_NETWORK_CACHE = '/etc/astara/astara_net_cache.juju'
 
 CONSOLE_SCRIPTS = [
     'astara-ctl',
@@ -64,7 +74,7 @@ CONSOLE_SCRIPTS = [
 ]
 
 PACKAGES = [
-    'python-glanceclient'
+    'python-glanceclient',
     'python-neutronclient',
 ]
 
@@ -80,6 +90,19 @@ BASE_GIT_PACKAGES = [
     'python-setuptools',
     'zlib1g-dev',
 ]
+
+
+def validate_config():
+    mgt_net = config('management-network-cidr')
+    try:
+        net = netaddr.IPNetwork(mgt_net)
+    except netaddr.core.AddrFormatError as e:
+        m = (
+            'Invalid network CIDR configured for management-network-cidr: %s'
+             % mgt_net
+        )
+        juju_log(m)
+        raise  Exception(m)
 
 
 def determine_packages():
@@ -99,6 +122,9 @@ def resource_map():
                 context.IdentityServiceContext(
                     service='astara',
                     service_user='astara'),
+                astara_context.AstaraContext(
+                    network_cache=ASTARA_NETWORK_CACHE,
+                )
             ],
         })
     ])
@@ -190,3 +216,101 @@ def migrate_database():
     """Runs astara-dbsync to initialize a new database or migrate existing"""
     cmd = ['astara-dbsync', '--config-file', ASTARA_CONFIG, 'upgrade']
     subprocess.check_call(cmd)
+
+
+def _auth_args():
+    """Get current service credentials from the identity-service relation"""
+    rel_ctxt = context.IdentityServiceContext()
+    rel_data = rel_ctxt()
+    if not context.context_complete(rel_data):
+        juju_log('identity-service context not complete')
+        return
+
+    auth_url = '%s://%s:%s/v2.0' % (
+        rel_data['service_protocol'],
+        rel_data['service_host'],
+        rel_data['service_port'])
+
+    auth_args = {
+        'username': rel_data['admin_user'],
+        'password': rel_data['admin_password'],
+        'tenant_name': rel_data['admin_tenant_name'],
+        'auth_url': auth_url,
+        'auth_strategy': 'keystone',
+        'region': config('region'),
+    }
+    return auth_args
+
+
+def get_or_create_network(client, name):
+    for net in client.list_networks()['networks']:
+        if net['name'] == name:
+            return net
+    res = client.create_network({
+        'network': {
+            'name': name,
+        }
+    })
+    return res['network']
+
+def get_or_create_subnet(client, cidr, network_id):
+
+    for sn in client.list_subnets(network_id=network_id)['subnets']:
+        if sn['cidr'] == cidr:
+            return sn
+
+    subnet = netaddr.IPNetwork(cidr)
+    if subnet.version == 6:
+        subnet_args = {
+            'ip_version': 6,
+            'ipv6_address_mode': 'slaac',
+        }
+    else:
+        subnet_args = {
+            'ip_version': 4,
+        }
+
+    subnet_args.update({
+        'cidr': cidr,
+        'network_id': network_id,
+        'enable_dhcp': True,
+    })
+
+    res = client.create_subnet({'subnet': subnet_args})
+    return res['subnet']
+
+def create_management_network():
+    """Creates a management network in Neutron to be used for
+    orchestrator->appliance communication.
+    """
+    auth_args = _auth_args()
+    if not auth_args:
+        return
+    client = NeutronClient.Client(**auth_args)
+
+    mgt_net_cidr = config('management-network-cidr')
+    mgt_net_name = config('management-network-name')
+
+    subnet = netaddr.IPNetwork(mgt_net_cidr)
+    if subnet.version == 6:
+        subnet_args = {
+            'ip_version': 6,
+            'ipv6_address_mode': 'slaac',
+        }
+    else:
+        subnet_args = {
+            'ip_version': 4,
+        }
+
+    network = get_or_create_network(client, mgt_net_name)
+    subnet = get_or_create_subnet(client, mgt_net_cidr, network['id'])
+
+    # since this data is not available in any relation and to avoid a call
+    # to neutron API for every config write out, save this data locally
+    # for access from config context.
+    net_config = {
+        'management_network': network,
+        'management_subnet': subnet,
+    }
+    with open(ASTARA_NETWORK_CACHE, 'w') as out:
+        out.write(json.dumps(net_config))

@@ -20,6 +20,8 @@ requires:
     interface: keystone
   network-notifications:
     interface: neutron-notifications
+  neutron-api:
+    interface: neutron-api
 peers:
   cluster:
     interface: astara-ha
