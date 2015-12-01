@@ -1,0 +1,31 @@
+name: astara-neutron-api
+summary: Astara Network Function Virtualization for OpenStack
+maintainer: Adam Gandelman <adamg@ubuntu.com>
+description: |
+  Project Astara is an OpenStack project that provides orchestration
+  of virtualized L3-l7 network functions.
+tags:
+  - openstack
+  - network
+subordinate: true
+provides:
+  astara-nfv:
+    interface: astara
+  neutron-plugin-api-subordinate:
+    interface: neutron-plugin-api-subordinate
+    scope: container
+requires:
+  container:
+    interface: juju-info
+    scope: container
+  shared-db:
+    interface: mysql-shared
+  amqp:
+    interface: rabbitmq
+  identity-service:
+    interface: keystone
+  network-notifications:
+    interface: neutron-notifications
+peers:
+  cluster:
+    interface: astara-ha

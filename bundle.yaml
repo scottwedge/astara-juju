@@ -1,0 +1,79 @@
+#astara-neutron-api:
+#    openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: astara-neutron, repository: 'git://github.com/openstack/astara-neutron', branch: stable/liberty}]}"
+#
+#keystone:
+#    openstack-origin: cloud:trusty-liberty
+#neutron-api:
+#    openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: neutron, repository: 'git://github.com/openstack/neutron', branch: stable/liberty}]}"
+#    manage-neutron-plugin-legacy-mode: False
+#ks:
+#    openstack-origin: cloud:trusty-liberty
+#
+#
+#nova-compute:
+#    openstack-origin: cloud:trusty-liberty
+##
+
+machines:
+  0:
+    series: trusty
+
+  # mysqlrabbit container
+  1:
+    series: trusty
+    constraints: mem=4G
+
+  # openstack container
+  2:
+    series: trusty
+    constraints: mem=2G
+
+series: trusty
+services:
+  mysql:
+    charm: cs:trusty/mysql
+    options:
+      max-connections: 20000
+    to:
+    - lxc:1
+  rabbitmq-server:
+    charm: cs:trusty/rabbitmq-server
+    options:
+      source: cloud:trusty-liberty
+    to:
+    - lxc:1
+  glance:
+    charm: cs:trusty/glance
+    options:
+      openstack-origin: cloud:trusty-liberty
+    to:
+    - lxc:1
+  keystone:
+    charm: local:trusty/keystone
+    options:
+      openstack-origin: cloud:trusty-liberty
+      admin-password: openstack
+    to:
+    - lxc:1
+  neutron-api:
+    charm: local:trusty/neutron-api
+    options:
+      openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: neutron, repository: 'git://github.com/openstack/neutron', branch: stable/liberty}]}"
+      manage-neutron-plugin-legacy-mode: False
+    to:
+    - lxc:1
+
+  astara-neutron-api:
+    num_units: 0
+    options:
+      openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: astara-neutron, repository: 'git://github.com/openstack/astara-neutron', branch: stable/liberty}]}"
+
+relations:
+  - [glance, mysql]
+  - [glance, keystone]
+  - [glance, rabbitmq-server]
+  - [keystone, mysql]
+  - [neutron-api, mysql]
+  - [neutron-api, rabbitmq-server]
+  - [neutron-api, keystone]
+  - [neutron-api, astara-neutron-api]

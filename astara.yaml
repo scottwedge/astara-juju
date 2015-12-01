@@ -1,12 +1,15 @@
-astara:
-    rabbit-user: foo
-    openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: astara, repository: 'git://github.com/openstack/astara', branch: stable/liberty}]}"
+astara-neutron-api:
+    openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: astara-neutron, repository: 'git://github.com/openstack/astara-neutron', branch: stable/liberty}]}"
 
 keystone:
     openstack-origin: cloud:trusty-liberty
 neutron-api:
+    openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: neutron, repository: 'git://github.com/openstack/neutron', branch: stable/liberty}]}"
+    manage-neutron-plugin-legacy-mode: False
+ks:
     openstack-origin: cloud:trusty-liberty
 
-ks:
+
+nova-compute:
     openstack-origin: cloud:trusty-liberty
 
