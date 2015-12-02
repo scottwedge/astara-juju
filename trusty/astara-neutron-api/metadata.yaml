@@ -24,6 +24,8 @@ requires:
     interface: rabbitmq
   identity-service:
     interface: keystone
+  image-service:
+    interface: glance
   network-notifications:
     interface: neutron-notifications
 peers:

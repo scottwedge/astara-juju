@@ -1,0 +1,7 @@
+repositories:
+- {name: requirements,
+   repository: 'git://github.com/openstack/requirements',
+   branch: stable/liberty}
+- {name: neutron-fwaas,
+   repository: 'git://github.com/openstack/nova',
+   branch: stable/liberty}

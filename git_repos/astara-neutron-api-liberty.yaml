@@ -1,0 +1,16 @@
+repositories:
+- {name: requirements,
+   repository: 'git://github.com/openstack/requirements',
+   branch: stable/liberty}
+- {name: astara-neutron,
+   repository: 'git://github.com/openstack/astara-neutron',
+   branch: stable/liberty}
+- {name: python-neutronclient,
+   repository: 'git://github.com/openstack/python-neutronclient',
+   branch: stable/liberty}
+- {name: python-glanceclient,
+   repository: 'git://github.com/openstack/python-glanceclient',
+   branch: stable/liberty}
+- {name: python-keystoneclient,
+   repository: 'git://github.com/openstack/python-keystoneclient',
+   branch: stable/liberty}

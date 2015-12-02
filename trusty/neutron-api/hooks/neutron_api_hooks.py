@@ -17,6 +17,7 @@ from charmhelpers.core.hookenv import (
     relation_get,
     relation_ids,
     relation_set,
+    related_units,
     status_set,
     open_port,
     unit_get,
@@ -106,6 +107,18 @@ hooks = Hooks()
 CONFIGS = register_configs()
 
 
+def allowed_units():
+    allowed = []
+    rids = relation_ids('shared-db') + relation_ids('pgsql-db')
+    for rid in rids:
+        for unit in related_units(rid):
+            rdata = relation_get(rid=rid, unit=unit)
+            a = rdata.get('allowed_units', '').split()
+            if a:
+                allowed += a
+    return set(allowed)
+
+
 def conditional_neutron_migration():
     if os_release('neutron-common') < 'kilo':
         log('Not running neutron database migration as migrations are handled '
@@ -115,6 +128,7 @@ def conditional_neutron_migration():
     if is_elected_leader(CLUSTER_RES):
         allowed_units = relation_get('allowed_units')
         if allowed_units and local_unit() in allowed_units.split():
+#        if local_unit() in allowed_units():
             migrate_neutron_database()
             service_restart('neutron-server')
         else:

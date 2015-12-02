@@ -43,7 +43,7 @@ services:
     to:
     - lxc:1
   glance:
-    charm: cs:trusty/glance
+    charm: local:trusty/glance
     options:
       openstack-origin: cloud:trusty-liberty
     to:
@@ -58,7 +58,8 @@ services:
   neutron-api:
     charm: local:trusty/neutron-api
     options:
-      openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: neutron, repository: 'git://github.com/openstack/neutron', branch: stable/liberty}]}"
+      openstack-origin: cloud:trusty-liberty
+      openstack-origin-git: include-file://git_repos/neutron-liberty.yaml
       manage-neutron-plugin-legacy-mode: False
     to:
     - lxc:1
@@ -66,7 +67,25 @@ services:
   astara-neutron-api:
     num_units: 0
     options:
-      openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: astara-neutron, repository: 'git://github.com/openstack/astara-neutron', branch: stable/liberty}]}"
+      openstack-origin: cloud:trusty-liberty
+      openstack-origin-git: include-file://git_repos/astara-neutron-api-liberty.yaml
+
+  nova-cloud-controller:
+    options:
+      openstack-origin: cloud:trusty-liberty
+#      openstack-origin-git: include-file://git_repos/nova-liberty.yaml
+      network-manager: Neutron
+      quantum-security-groups: 'yes'
+    to:
+    - lxc:1
+
+  nova-compute:
+    charm: local:trusty/nova-compute
+    options:
+      openstack-origin: cloud:trusty-liberty
+#      openstack-origin-git: include-file://git_repos/nova-liberty.yaml
+    to:
+    - 2
 
 relations:
   - [glance, mysql]
@@ -76,4 +95,16 @@ relations:
   - [neutron-api, mysql]
   - [neutron-api, rabbitmq-server]
   - [neutron-api, keystone]
-  - [neutron-api, astara-neutron-api]
+  - [ nova-cloud-controller, mysql ]
+  - [ nova-cloud-controller, rabbitmq-server ]
+  - [ nova-cloud-controller, glance ]
+  - [ nova-cloud-controller, keystone ]
+  - [ nova-compute, nova-cloud-controller ]
+  - [ nova-compute, mysql ]
+  - [ nova-compute, 'rabbitmq-server:amqp']
+  - [ nova-compute, glance ]
+  - [astara-neutron-api, keystone]
+  - [astara-neutron-api, neutron-api]
+
+overrrides:
+    openstack-origin: cloud:trusty-liberty

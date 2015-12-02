@@ -380,17 +380,37 @@ def do_openstack_upgrade(configs):
         migrate_neutron_database()
 
 
+def subordinate_migration_configs():
+    additional_configs = []
+    for rid in relation_ids('neutron-api-subordinate'):
+        for unit in related_units(rid):
+            rdata = relatin_get(rid=rid, unit=unit)
+            configs = rdata.get('migration-configs')
+            if not configs:
+                continue
+            if isinstance(configs, list):
+                additional_configs += configs
+            else:
+                additional_configs.append(configs)
+    print 'ADD: %s' % additional_configs
+    return additional_configs
+
+
 def stamp_neutron_database(release):
     '''Stamp the database with the current release before upgrade.'''
     log('Stamping the neutron database with release %s.' % release)
     plugin = config('neutron-plugin')
-    cmd = ['neutron-db-manage',
+
+    config_args = [
            '--config-file', NEUTRON_CONF,
            '--config-file', neutron_plugin_attribute(plugin,
                                                      'config',
-                                                     'neutron'),
-           'stamp',
-           release]
+                                                     'neutron')]
+#    for conf in subordinate_migration_configs():
+#        config_args += ['--config-file', conf]
+#
+
+    cmd = ['neutron-db-manage'] + config_args + ['stamp', 'release']
     subprocess.check_output(cmd)
 
 
@@ -398,13 +418,17 @@ def migrate_neutron_database():
     '''Initializes a new database or upgrades an existing database.'''
     log('Migrating the neutron database.')
     plugin = config('neutron-plugin')
-    cmd = ['neutron-db-manage',
+
+    config_args = [
            '--config-file', NEUTRON_CONF,
            '--config-file', neutron_plugin_attribute(plugin,
                                                      'config',
-                                                     'neutron'),
-           'upgrade',
-           'head']
+                                                     'neutron')]
+#    for conf in subordinate_migration_configs():
+#        config_args += ['--config-file', conf]
+#
+    cmd = ['neutron-db-manage'] + config_args + ['upgrade', 'head']
+
     subprocess.check_output(cmd)
 
 

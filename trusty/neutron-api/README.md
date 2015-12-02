@@ -96,7 +96,7 @@ The following is a full list of current tip repos (may not be up-to-date):
            repository: 'git://github.com/openstack/python-neutronclient',
            branch: master}
         - {name: python-novaclient,
-           repository': 'git://github.com/openstack/python-novaclient',
+           repository: 'git://github.com/openstack/python-novaclient',
            branch: master}
         - {name: keystonemiddleware,
            repository: 'git://github.com/openstack/keystonemiddleware',

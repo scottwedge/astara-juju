@@ -44,6 +44,7 @@ from astara_utils import (
     register_configs,
     restart_map,
     git_install,
+    publish_astara_appliance_image,
 )
 
 from charmhelpers.contrib.openstack.utils import (
@@ -173,9 +174,17 @@ def neutron_api_joined(rid=None):
         'service-plugins': 'akanda.neutron.plugins.ml2_neutron_plugin.L3RouterPlugin',
         'subordinate_configuration': json.dumps(sub_config),
         'restart-trigger': str(uuid.uuid4()),
+        'migration-configs': ['/etc/neutron/plugins/ml2/ml2_conf.ini'],
     }
     print 'YYY: %s' % relation_settings
     relation_set(relation_settings=relation_settings)
+
+
+@hooks.hook('image-service-relation-changed')
+def image_service_relation_changed():
+    rel_data = relation_get()
+    if rel_data.get('glance-api-ready') == 'yes':
+        publish_astara_appliance_image()
 
 
 @hooks.hook('install')

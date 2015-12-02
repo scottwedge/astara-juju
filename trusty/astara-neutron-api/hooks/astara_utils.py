@@ -21,8 +21,6 @@ from collections import OrderedDict
 
 from charmhelpers.contrib.openstack import context, templating
 
-from neutronclient.v2_0 import client as NeutronClient
-
 import astara_context
 
 from charmhelpers.contrib.openstack.utils import (
@@ -56,14 +54,13 @@ from charmhelpers.contrib.openstack.utils import (
     git_pip_venv_dir,
 )
 
-
 from charmhelpers.contrib.python.packages import pip_install
 
 from charmhelpers.core.templating import render
 
 
 ASTARA_NETWORK_CACHE = '/var/lib/juju/astara-network-cache.json'
-
+GLANCE_IMG_ID_CACHE = '/var/lib/juju/astara-applinace-image-cache'
 
 BASE_GIT_PACKAGES = [
     'libffi-dev',
@@ -76,6 +73,9 @@ BASE_GIT_PACKAGES = [
     'python-pip',
     'python-setuptools',
     'zlib1g-dev',
+    'python-neutronclient',
+    'python-keystoneclient',
+    'python-glanceclient',
 ]
 
 
@@ -166,20 +166,27 @@ def _auth_args():
 
 
 def get_or_create_network(client, name):
+    juju_log('get_or_create_network: %s' % name)
     for net in client.list_networks()['networks']:
         if net['name'] == name:
+            juju_log('- found existing network: %s' % net['id'])
             return net
+    juju_log('- creating new network: %s' % net['name'])
     res = client.create_network({
         'network': {
             'name': name,
         }
-    })
-    return res['network']
+    })['network']
+    juju_log('- created new network: %s( net_id: %s)' %
+        (res['name'], res['id']))
+    return res
+
 
 def get_or_create_subnet(client, cidr, network_id):
-
+    juju_log('get_or_create_subnet: %s (net: %s)'  % (cidr, network_id))
     for sn in client.list_subnets(network_id=network_id)['subnets']:
         if sn['cidr'] == cidr:
+            juju_log('- found existing subnet: %s' % sn['id'])
             return sn
 
     subnet = netaddr.IPNetwork(cidr)
@@ -199,13 +206,16 @@ def get_or_create_subnet(client, cidr, network_id):
         'enable_dhcp': True,
     })
 
-    res = client.create_subnet({'subnet': subnet_args})
-    return res['subnet']
+    juju_log('- creating new subnet: %s' % net['cidr'])
+    res = client.create_subnet({'subnet': subnet_args})['subnet']
+    juju_log('- created new subnet: %s' % res['id'])
+    return res
 
 def create_management_network():
     """Creates a management network in Neutron to be used for
     orchestrator->appliance communication.
     """
+    from neutronclient.v2_0 import client as NeutronClient
     auth_args = _auth_args()
     if not auth_args:
         return
@@ -237,6 +247,81 @@ def create_management_network():
     }
     with open(ASTARA_NETWORK_CACHE, 'w') as out:
         out.write(json.dumps(net_config))
+
+
+def get_keystone_session(auth_args):
+    from keystoneclient import auth as ksauth
+    from keystoneclient import session as kssession
+
+    auth_plugin = ksauth.get_plugin_class('password')
+    auth = auth_plugin(
+        auth_url=auth_args['auth_url'],
+        username=auth_args['username'],
+        password=auth_args['password'],
+        project_name=auth_args['tenant_name'],
+    )
+    return kssession.Session(auth=auth)
+
+
+def get_glanceclient(auth_args):
+    from glanceclient.v2.client import Client
+    ks_session = get_keystone_session(auth_args)
+    return Client(session=ks_session)
+
+def get_appliance_image(img_loc):
+    juju_log('Downloading astara appliance from %s' % img_loc)
+    subprocess.check_output([
+        'wget', '-O', '/tmp/%s' % img_name, img_loc
+    ])
+
+def _cache_img(img):
+    with open(GLANCE_IMG_ID_CACHE, 'w') as out:
+        out.write(img['id'])
+
+def appliance_image():
+    img_loc = 'http://amebix.home.base/~adam/akanda.qcow2'
+    img_name = img_loc.split('/')[-1]
+    return img_name, img_loc
+
+def publish_astara_appliance_image():
+    auth_args = _auth_args()
+    if not auth_args:
+        return
+    client = get_glanceclient(auth_args)
+
+    img_name, img_loc = appliance_image()
+
+    for img in client.images.list():
+        if img['name'] == img_name:
+            _cache_img(img)
+            juju_log(
+                'Image named %s already exists in glance, skipping publish.' %
+                img_name)
+            return
+
+    juju_log('Downloading astara appliance from %s' % img_loc)
+    subprocess.check_output([
+        'wget', '-O', '/tmp/%s' % img_name, img_loc
+    ])
+
+    juju_log('Publishing appliance image into glance')
+    glance_img = client.images.create(
+        name=img_name,
+        container_format='bare',
+        disk_format='qcow2')
+    client.images.upload(
+        image_id=glance_img['id'],
+        image_data=open('/tmp/%s' % img_name))
+
+    _cache_img(glance_img)
+    return glance_img['id']
+
+
+def appliance_image_uuid():
+    if os.path.isfile(GLANCE_IMG_ID_CACHE):
+        return open(GLANCE_IMG_ID_CACHE).read().strip()
+    else:
+        return publish_astara_appliance_image()
 
 
 def api_extensions_path():

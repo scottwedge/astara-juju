@@ -1,0 +1,7 @@
+repositories:
+- {name: requirements,
+   repository: 'git://github.com/openstack/requirements',
+   branch: master}
+- {name: astara-neutron,
+   repository: 'git://github.com/openstack/astara-neutron',
+   branch: master}
