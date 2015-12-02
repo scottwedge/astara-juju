@@ -87,6 +87,13 @@ services:
     to:
     - 2
 
+  neutron-openvswitch:
+    charm: local:trusty/neutron-openvswitch
+    num_units: 0
+#    options:
+#      openstack-origin: cloud:trusty-liberty
+#      openstack-origin-git: include-file://git_repos/nova-liberty.yaml
+
 relations:
   - [glance, mysql]
   - [glance, keystone]
@@ -95,14 +102,14 @@ relations:
   - [neutron-api, mysql]
   - [neutron-api, rabbitmq-server]
   - [neutron-api, keystone]
-  - [ nova-cloud-controller, mysql ]
-  - [ nova-cloud-controller, rabbitmq-server ]
-  - [ nova-cloud-controller, glance ]
-  - [ nova-cloud-controller, keystone ]
-  - [ nova-compute, nova-cloud-controller ]
-  - [ nova-compute, mysql ]
-  - [ nova-compute, 'rabbitmq-server:amqp']
-  - [ nova-compute, glance ]
+  - [nova-cloud-controller, mysql]
+  - [nova-cloud-controller, rabbitmq-server]
+  - [nova-cloud-controller, glance]
+  - [nova-cloud-controller, keystone]
+  - [nova-compute, nova-cloud-controller]
+  - [nova-compute, mysql]
+  - [nova-compute, 'rabbitmq-server:amqp']
+  - [nova-compute, glance]
   - [astara-neutron-api, keystone]
   - [astara-neutron-api, neutron-api]
 
