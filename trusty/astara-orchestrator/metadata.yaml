@@ -12,6 +12,8 @@ provides:
   neutron-plugin:
     interface: neutron-plugin
     scope: container
+  astara-orchestrator:
+    interface: astara-orchestrator
 requires:
   container:
     interface: juju-info

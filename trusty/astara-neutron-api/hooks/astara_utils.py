@@ -31,7 +31,10 @@ from charmhelpers.contrib.openstack.utils import (
 from charmhelpers.core.hookenv import (
     charm_dir,
     config,
-    log as juju_log
+    log as juju_log,
+    relation_ids,
+    relation_get,
+    related_units,
 )
 
 from charmhelpers.core.host import (
@@ -59,6 +62,7 @@ from charmhelpers.contrib.python.packages import pip_install
 from charmhelpers.core.templating import render
 
 
+TEMPLATES = 'templates/'
 ASTARA_NETWORK_CACHE = '/var/lib/juju/astara-network-cache.json'
 GLANCE_IMG_ID_CACHE = '/var/lib/juju/astara-applinace-image-cache'
 
@@ -96,37 +100,19 @@ def validate_config():
         raise  Exception(m)
 
 
-
-def resource_map():
-    rm = OrderedDict([
-        (ASTARA_CONFIG, {
-            'services': ['astara-orchestrator'],
-            'contexts': [
-                context.AMQPContext(),
-                context.SharedDBContext(),
-                context.IdentityServiceContext(
-                    service='astara',
-                    service_user='astara'),
-                astara_context.AstaraContext(
-                    network_cache=ASTARA_NETWORK_CACHE,
-                )
-            ],
+def register_configs(release=None):
+    resources = OrderedDict([
+        ('/etc/neutron/plugins/ml2/ml2_conf.ini', {
+            'services': [],
+            'contexts': [],
         })
     ])
-    return rm
 
-def restart_map():
-    return OrderedDict([(cfg, v['services'])
-                        for cfg, v in resource_map().iteritems()])
-
-
-def register_configs(release=None):
     configs = templating.OSConfigRenderer(templates_dir=TEMPLATES,
                                           openstack_release='liberty')
-    for cfg, rscs in resource_map().iteritems():
+    for cfg, rscs in resources.iteritems():
         configs.register(cfg, rscs['contexts'])
     return configs
-
 
 
 def git_install(projects_yaml):
@@ -165,20 +151,25 @@ def _auth_args():
     return auth_args
 
 
-def get_or_create_network(client, name):
+def get_or_create_network(client, name, external=False):
     juju_log('get_or_create_network: %s' % name)
     for net in client.list_networks()['networks']:
         if net['name'] == name:
             juju_log('- found existing network: %s' % net['id'])
             return net
-    juju_log('- creating new network: %s' % net['name'])
-    res = client.create_network({
+    juju_log('- creating new network: %s' % name)
+    net_dict = {
         'network': {
             'name': name,
         }
-    })['network']
+    }
+    if external:
+        net_dict['network']['router:external'] = True
+
+    res = client.create_network(net_dict)['network']
     juju_log('- created new network: %s( net_id: %s)' %
         (res['name'], res['id']))
+
     return res
 
 
@@ -206,14 +197,39 @@ def get_or_create_subnet(client, cidr, network_id):
         'enable_dhcp': True,
     })
 
-    juju_log('- creating new subnet: %s' % net['cidr'])
+    juju_log('- creating new subnet: %s' % cidr)
     res = client.create_subnet({'subnet': subnet_args})['subnet']
     juju_log('- created new subnet: %s' % res['id'])
     return res
 
-def create_management_network():
-    """Creates a management network in Neutron to be used for
+
+def _api_ready(relation, key):
+    ready = 'no'
+    for rid in relation_ids(relation):
+        for unit in related_units(rid):
+            ready = relation_get(attribute=key, unit=unit, rid=rid)
+    return ready == 'yes'
+
+
+def is_neutron_api_ready():
+    return _api_ready('neutron-plugin-api-subordinate', 'neutron-api-ready')
+
+
+def is_glance_api_ready():
+    return _api_ready('image-service', 'glance-api-ready')
+
+
+def create_networks():
+    """Gets or Creates a management network in Neutron to be used for
     orchestrator->appliance communication.
+
+    The data about the network and subnet is cached locally to avoid future
+    neutron calls.
+
+    If we do not yet have a populated identity-service relation, this does
+    nothing.
+
+    :returns: A dict containing the network and subnet.
     """
     from neutronclient.v2_0 import client as NeutronClient
     auth_args = _auth_args()
@@ -221,33 +237,36 @@ def create_management_network():
         return
     client = NeutronClient.Client(**auth_args)
 
-    mgt_net_cidr = config('management-network-cidr')
-    mgt_net_name = config('management-network-name')
+    mgt_net  = (
+        config('management-network-cidr'), config('management-network-name'))
+    ext_net  = (
+        config('external-network-cidr'), config('external-network-name'))
 
-    subnet = netaddr.IPNetwork(mgt_net_cidr)
-    if subnet.version == 6:
-        subnet_args = {
-            'ip_version': 6,
-            'ipv6_address_mode': 'slaac',
-        }
-    else:
-        subnet_args = {
-            'ip_version': 4,
-        }
 
-    network = get_or_create_network(client, mgt_net_name)
-    subnet = get_or_create_subnet(client, mgt_net_cidr, network['id'])
+    networks = []
+    subnets = []
+    for net in [mgt_net, ext_net]:
+        if net == ext_net:
+            external = True
+        else:
+            external = False
+
+        net_cidr, net_name = net
+        network = get_or_create_network(client, net_name, external)
+        networks.append(network)
+        subnets.append(get_or_create_subnet(client, net_cidr, network['id']))
 
     # since this data is not available in any relation and to avoid a call
     # to neutron API for every config write out, save this data locally
     # for access from config context.
-    net_config = {
-        'management_network': network,
-        'management_subnet': subnet,
+    net_data = {
+        'networks': networks,
+        'subnets': subnets,
     }
     with open(ASTARA_NETWORK_CACHE, 'w') as out:
-        out.write(json.dumps(net_config))
+        out.write(json.dumps(net_data))
 
+    return net_data
 
 def get_keystone_session(auth_args):
     from keystoneclient import auth as ksauth
@@ -279,11 +298,24 @@ def _cache_img(img):
         out.write(img['id'])
 
 def appliance_image():
-    img_loc = 'http://amebix.home.base/~adam/akanda.qcow2'
+    img_loc = config('astara-router-appliance-url')
     img_name = img_loc.split('/')[-1]
     return img_name, img_loc
 
 def publish_astara_appliance_image():
+    """Downloads and publishes the appliance image into Glance
+
+    If an image by the same name exists already, we do not publish.
+
+    If we do not yet have a populated identity-service relation, this does
+    nothing.
+
+    In any case, the published or found image is cached locally to avoid
+    glance calls in the future.
+
+    Note: We're currently publishing qcow2's and will need to make this
+    flexible to do a conversion and publish in raw for Ceph backed clouds.
+    """
     auth_args = _auth_args()
     if not auth_args:
         return
@@ -318,11 +350,37 @@ def publish_astara_appliance_image():
 
 
 def appliance_image_uuid():
+    """Returns the UUID of the published appliance image"""
     if os.path.isfile(GLANCE_IMG_ID_CACHE):
         return open(GLANCE_IMG_ID_CACHE).read().strip()
     else:
         return publish_astara_appliance_image()
 
+
+def get_network(net_type='management'):
+    """Returns the dict of network + subnet data for the management network"""
+    if os.path.isfile(ASTARA_NETWORK_CACHE):
+        net_data = json.loads(open(ASTARA_NETWORK_CACHE).read())
+    else:
+        net_data = create_networks()
+
+    if not net_data:
+        return {}
+
+    net_name = config('%s-network-name' % net_type)
+    subnet_cidr = config('%s-network-cidr' % net_type)
+    network = None
+    subnet = None
+    for net in net_data['networks']:
+        if net['name'] == net_name:
+            network = net
+    for snet in net_data['subnets']:
+        if snet['cidr'] == subnet_cidr:
+            subnet =  snet
+    return {
+        'network': network,
+        'subnet': subnet,
+    }
 
 def api_extensions_path():
     """Return need the full path to the installation of neutron API extensions

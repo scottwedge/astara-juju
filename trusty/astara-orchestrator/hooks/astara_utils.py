@@ -17,15 +17,16 @@ import subprocess
 
 from collections import OrderedDict
 
-from charmhelpers.contrib.openstack import context, templating
+import astara_context
 
+from charmhelpers.core.hookenv import charm_dir
+from charmhelpers.contrib.openstack import context, templating
+from charmhelpers.contrib.python.packages import pip_install
+from charmhelpers.core.templating import render
 
 from charmhelpers.contrib.openstack.utils import (
     git_install_requested,
 )
-
-
-from charmhelpers.core.hookenv import charm_dir
 
 from charmhelpers.core.host import (
     adduser,
@@ -38,7 +39,6 @@ from charmhelpers.core.host import (
     write_file,
 )
 
-
 from charmhelpers.contrib.openstack.utils import (
     git_install_requested,
     git_clone_and_install,
@@ -47,10 +47,6 @@ from charmhelpers.contrib.openstack.utils import (
     git_pip_venv_dir,
 )
 
-
-from charmhelpers.contrib.python.packages import pip_install
-
-from charmhelpers.core.templating import render
 
 TEMPLATES = 'templates/'
 ASTARA_CONFIG = '/etc/astara/orchestrator.ini'
@@ -64,7 +60,7 @@ CONSOLE_SCRIPTS = [
 ]
 
 PACKAGES = [
-    'python-glanceclient'
+    'python-glanceclient',
     'python-neutronclient',
 ]
 
@@ -94,6 +90,7 @@ def resource_map():
         (ASTARA_CONFIG, {
             'services': ['astara-orchestrator'],
             'contexts': [
+                astara_context.AstaraOrchestratorContext(),
                 context.AMQPContext(),
                 context.SharedDBContext(),
                 context.IdentityServiceContext(

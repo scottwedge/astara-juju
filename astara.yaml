@@ -1,8 +1,10 @@
 astara-neutron-api:
+    openstack-origin: cloud:trusty-liberty
+    openstack-origin-git: include-file://git_repos/astara-neutron-api-liberty.yaml
+    astara-router-appliance-url: http://amebix.home.base/~adam/akanda.qcow2
     openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: astara-neutron, repository: 'git://github.com/openstack/astara-neutron', branch: stable/liberty}]}"
 astara-orchestrator:
     openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: astara, repository: 'git://github.com/openstack/astara', branch: stable/liberty}]}"
-
 
 keystone:
     openstack-origin: cloud:trusty-liberty

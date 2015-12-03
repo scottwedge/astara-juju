@@ -15,13 +15,16 @@
 # under the License.
 
 import json
+import subprocess
 import sys
 import uuid
+
 
 from charmhelpers.fetch import (
     apt_install,
     apt_update,
 )
+
 
 from charmhelpers.core.hookenv import (
     Hooks,
@@ -29,6 +32,7 @@ from charmhelpers.core.hookenv import (
     log as juju_log,
     local_unit,
     relation_get,
+    relation_ids,
     relation_set,
     status_set,
     unit_get,
@@ -38,20 +42,25 @@ from charmhelpers.core.hookenv import (
 
 from astara_utils import (
     api_extensions_path,
-    create_management_network,
+    appliance_image_uuid,
+    create_networks,
     determine_packages,
-    migrate_database,
-    register_configs,
-    restart_map,
+    get_network,
     git_install,
+    is_glance_api_ready,
+    is_neutron_api_ready,
+    migrate_database,
     publish_astara_appliance_image,
+    register_configs,
 )
+
 
 from charmhelpers.contrib.openstack.utils import (
     config_value_changed,
     sync_db_with_multi_ipv6_addresses,
     git_install_requested,
 )
+
 
 from charmhelpers.contrib.openstack.ip import (
     canonical_url,
@@ -60,7 +69,7 @@ from charmhelpers.contrib.openstack.ip import (
 
 
 hooks = Hooks()
-
+CONFIGS = register_configs()
 
 @hooks.hook('shared-db-relation-joined')
 def db_joined():
@@ -111,7 +120,15 @@ def keystone_joined(relation_id=None):
 
 @hooks.hook('identity-service-relation-changed')
 def keystone_changed():
-    create_management_network()
+    # once we have sufficent keystone creds and the neutron ap is ready, we
+    # can create networks in neutron and images in glance, then advertise
+    # those to the orchestrator.
+    if is_neutron_api_ready():
+        create_networks()
+    if is_glance_api_ready():
+        publish_astara_appliance_image()
+    for rid in relation_ids('astara-orchestrator'):
+        astara_orchestrator_relation_joined(rid)
 
 
 @hooks.hook('amqp-relation-joined')
@@ -147,12 +164,11 @@ def config_changed():
 
 @hooks.hook('neutron-plugin-api-subordinate-relation-changed')
 def neutron_api_changed(rid=None):
-    api_ready = relation_get('neutron-api-ready')
-    if not api_ready:
+    if not is_neutron_api_ready():
         return
-    if api_ready.lower() != 'yes':
-        return
-    create_management_network()
+    create_networks()
+    for rid in relation_ids('astara-orchestrator'):
+        astara_orchestrator_relation_joined(rid)
 
 
 @hooks.hook('neutron-plugin-api-subordinate-relation-joined')
@@ -165,9 +181,11 @@ def neutron_api_joined(rid=None):
                         ('api_extensions_path', api_extensions_path())
                     ]
                 }
-            }
+            },
         },
     }
+    # Set ml2_conf.ini
+    CONFIGS.write_all()
     relation_settings = {
         'neutron-plugin': 'astara',
         'core-plugin': 'akanda.neutron.plugins.ml2_neutron_plugin.Ml2Plugin',
@@ -176,15 +194,58 @@ def neutron_api_joined(rid=None):
         'restart-trigger': str(uuid.uuid4()),
         'migration-configs': ['/etc/neutron/plugins/ml2/ml2_conf.ini'],
     }
-    print 'YYY: %s' % relation_settings
     relation_set(relation_settings=relation_settings)
 
 
 @hooks.hook('image-service-relation-changed')
 def image_service_relation_changed():
-    rel_data = relation_get()
-    if rel_data.get('glance-api-ready') == 'yes':
-        publish_astara_appliance_image()
+    # If the API is ready we publish the astara appliance(s) into Glance
+    # and advertise those to the orchestrator.
+    if not is_glance_api_ready():
+        return
+    publish_astara_appliance_image()
+    for rid in relation_ids('astara-orchestrator'):
+        astara_orchestrator_relation_joined(rid)
+
+
+@hooks.hook('astara-orchestrator-relation-joined')
+def astara_orchestrator_relation_joined(rid=None):
+    appliance_image = appliance_image_uuid()
+    mgt_net_data = get_network('management') or {}
+    if not appliance_image or not mgt_net_data:
+        juju_log(
+            'No published image or created networks to advertise to '
+            'astara-orchestrator.')
+        return
+
+    mgt_net_data = get_network('management') or {}
+    mgt_network = mgt_net_data.get('network', {})
+    mgt_subnet = mgt_net_data.get('subnet', {})
+    ext_net_data = get_network('external') or {}
+    ext_network = ext_net_data.get('network', {})
+    ext_subnet = ext_net_data.get('subnet', {})
+
+    required_data = [mgt_network, mgt_subnet, ext_network, ext_subnet,
+        appliance_image]
+
+    for d in required_data:
+        if not d:
+            juju_log(
+                'No published image or created networks to advertise to '
+                'astara-orchestrator.')
+            return
+
+
+    relation_data = {
+        'management_network_id': mgt_network.get('id'),
+        'management_subnet_id': mgt_subnet.get('id'),
+        'management_prefix': mgt_subnet.get('cidr'),
+        'external_network_id': ext_network.get('id'),
+        'external_subnet_id': ext_subnet.get('id'),
+        'external_prefix': ext_subnet.get('cidr'),
+        'router_image_uuid': appliance_image,
+    }
+    relation_set(relation_id=rid, **relation_data)
 
 
 @hooks.hook('install')
@@ -195,6 +256,15 @@ def install():
     if git_install_requested():
         status_set('maintenance', 'Installing Astara (via git)')
         git_install(config('openstack-origin-git'))
+
+        # something gets screwy with the requests packages being pulled in
+        # as python-requests-whl via pip and via the UCA, causing glanceclient
+        # usage in the charm to break.  Purge it here and let it be
+        # reinstalled during next hook exec, that seems to fix the issue?
+        cmd = ['dpkg', '-P', 'python-pip-whl', 'python-requests-whl',
+               'python-pip']
+        subprocess.check_call(cmd)
+
 
 def main():
     try:

@@ -144,6 +144,15 @@ def amqp_changed():
     CONFIGS.write(ASTARA_CONFIG)
 
 
+@hooks.hook('astara-orchestrator-relation-changed')
+@restart_on_change(restart_map(), stopstart=True)
+def astara_orchestrator_relation_joined():
+    # The astara-neutron-api subordinate creates the mgt network
+    # and publishes appliance images, then informs us about those
+    # to be plugged into config.
+    CONFIGS.write(ASTARA_CONFIG)
+
+
 @hooks.hook('config-changed')
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
@@ -170,7 +179,7 @@ def main():
     try:
         hooks.execute(sys.argv)
     except UnregisteredHookError as e:
-        log('Unknown hook {} - skipping.'.format(e))
+        juju_log('Unknown hook {} - skipping.'.format(e))
 #    set_os_workload_status(CONFIGS, REQUIRED_INTERFACES,
 #                           charm_func=check_optional_relations)
 #

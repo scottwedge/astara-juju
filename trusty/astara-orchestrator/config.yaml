@@ -49,7 +49,7 @@ options:
     type: string
     description: Database name
   rabbit-user:
-    default: glance
+    default: astara
     type: string
     description: Username to request access on rabbitmq-server.
   rabbit-vhost:

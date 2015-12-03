@@ -26,6 +26,8 @@ requires:
     interface: keystone
   image-service:
     interface: glance
+  astara-orchestrator:
+    interface: astara-orchestrator
   network-notifications:
     interface: neutron-notifications
 peers:

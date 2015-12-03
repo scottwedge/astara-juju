@@ -61,10 +61,21 @@ options:
     type: string
     description: OpenStack Region
   management-network-cidr:
-    default: '10.0.123.0/24'
+    default: 'fdca:3ba5:a17a:acda::/64'
     type: string
     description: IPv4 or IPv6 network CIDR for the Astara management tenant network.
   management-network-name:
     default: astara-mgt
     type: string
     description: The name of the Astara management tenant network to create
+  external-network-cidr:
+    default: '172.16.77.0/24'
+    description: IPv4 or IPv6 network CIDR for the external network.
+  external-network-name:
+    default: astara-ext
+    type: string
+    description: The name of the Astara external network to create.
+  astara-router-appliance-url:
+    default: http://tarballs.openstack.org/akanda-appliance/images/akanda_appliance.qcow2
+    type: string
+    decscription: The URL of the Astara router appliance image to be published into Glance.

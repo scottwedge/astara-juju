@@ -1,29 +1,11 @@
-#astara-neutron-api:
-#    openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: astara-neutron, repository: 'git://github.com/openstack/astara-neutron', branch: stable/liberty}]}"
-#
-#keystone:
-#    openstack-origin: cloud:trusty-liberty
-#neutron-api:
-#    openstack-origin-git: "{repositories: [{name: requirements, repository: 'git://github.com/openstack/requirements', branch: stable/liberty}, {name: neutron, repository: 'git://github.com/openstack/neutron', branch: stable/liberty}]}"
-#    manage-neutron-plugin-legacy-mode: False
-#ks:
-#    openstack-origin: cloud:trusty-liberty
-#
-#
-#nova-compute:
-#    openstack-origin: cloud:trusty-liberty
-##
-
 machines:
   0:
     series: trusty
 
-  # mysqlrabbit container
   1:
     series: trusty
     constraints: mem=4G
 
-  # openstack container
   2:
     series: trusty
     constraints: mem=2G
@@ -69,11 +51,17 @@ services:
     options:
       openstack-origin: cloud:trusty-liberty
       openstack-origin-git: include-file://git_repos/astara-neutron-api-liberty.yaml
+      astara-router-appliance-url: http://amebix.home.base/~adam/akanda.qcow2
+
+  astara-orchestrator:
+    num_units: 0
+    options:
+      openstack-origin: cloud:trusty-liberty
+      openstack-origin-git: include-file://git_repos/astara-orchestrator-liberty.yaml
 
   nova-cloud-controller:
     options:
       openstack-origin: cloud:trusty-liberty
-#      openstack-origin-git: include-file://git_repos/nova-liberty.yaml
       network-manager: Neutron
       quantum-security-groups: 'yes'
     to:
@@ -83,16 +71,12 @@ services:
     charm: local:trusty/nova-compute
     options:
       openstack-origin: cloud:trusty-liberty
-#      openstack-origin-git: include-file://git_repos/nova-liberty.yaml
     to:
     - 2
 
   neutron-openvswitch:
     charm: local:trusty/neutron-openvswitch
     num_units: 0
-#    options:
-#      openstack-origin: cloud:trusty-liberty
-#      openstack-origin-git: include-file://git_repos/nova-liberty.yaml
 
 relations:
   - [glance, mysql]
@@ -106,12 +90,22 @@ relations:
   - [nova-cloud-controller, rabbitmq-server]
   - [nova-cloud-controller, glance]
   - [nova-cloud-controller, keystone]
+  - [nova-cloud-controller, neutron-api]
   - [nova-compute, nova-cloud-controller]
   - [nova-compute, mysql]
   - [nova-compute, 'rabbitmq-server:amqp']
   - [nova-compute, glance]
+  - [nova-compute, neutron-openvswitch]
+  - [neutron-openvswitch, rabbitmq-server]
+  - [neutron-openvswitch, nova-compute]
   - [astara-neutron-api, keystone]
   - [astara-neutron-api, neutron-api]
+  - [astara-neutron-api, glance]
+  - [astara-orchestrator, keystone]
+  - [astara-orchestrator, mysql]
+  - [astara-orchestrator, rabbitmq-server]
+  - [astara-orchestrator, astara-neutron-api]
+  - [astara-orchestrator, nova-compute]
 
 overrrides:
     openstack-origin: cloud:trusty-liberty
