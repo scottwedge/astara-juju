@@ -60,11 +60,3 @@ options:
     default: RegionOne
     type: string
     description: OpenStack Region
-  management-network-cidr:
-    default: '10.0.123.0/24'
-    type: string
-    description: IPv4 or IPv6 network CIDR for the Astara management tenant network.
-  management-network-name:
-    default: astara-mgt
-    type: string
-    description: The name of the Astara management tenant network to create

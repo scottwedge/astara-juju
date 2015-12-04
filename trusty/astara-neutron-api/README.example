@@ -1,41 +1,46 @@
 # Overview
 
-Describe the intended usage of this charm and anything unique about how this charm relates to others here.
+This charm provides the Astara network orchestration service for OpenStack clouds.
 
-This README will be displayed in the Charm Store, it should be either Markdown or RST. Ideal READMEs include instructions on how to use the charm, expected usage, and charm features that your audience might be interested in. For an example of a well written README check out Hadoop: http://jujucharms.com/charms/precise/hadoop
-
-Use this as a Markdown reference if you need help with the formatting of this README: http://askubuntu.com/editing-help
-
-This charm provides [service](http://example.com). Add a description here of what the service itself actually does.
-
-Also remember to check the [icon guidelines](https://jujucharms.com/docs/stable/authors-charm-icon) so that your charm looks good in the Juju GUI.
+Astara aims to simplify networking in OpenStack clouds by removing the need for complex controllers and gateway nodes, offloading routing, loadbalancing and other advanced networking serivces onto
+the cloud itself.  It does this by virtualizing network functions and orchestrating them as VNFs running on Nova.  For more information see https://wiki.openstack.org/wiki/Astara.
 
 # Usage
 
-Step by step instructions on using the charm:
+This charm is a subordinate to the neutron-api charm.  It also requires the deploynment of the astara-orchestrator subordinate charm alongside nova-compute.  It eliminates the need for
+the neutron-gateway charm as routing L3 routing is now handled by the compute tier.
 
-    juju deploy servicename
+The astara-neutron-api charm has several core functions:
 
-and so on. If you're providing a web service or something that the end user needs to go to, tell them here, especially if you're deploying a service that might listen to a non-default port.
+    * Install the astara-neutron Neutron ML2 plugin and API extensions and configure the principal service to use them.
+    * Create or find the management tenant network and external networks in Neutron.
+    * Publish Astara appliance image(s) into Glance.
+    * Coordinate the configuration of these resources in the astara-orchestrator service.
 
-You can then browse to http://ip-address to configure the service.
+Step by step instructions on using the charm.  This assumes the keystone, neutron-api, glance services have already been deployed.
 
+    juju deploy astara-neutron-api
+    juju deploy astara-orchestrator
+    juju add-relation astara-neutron-api neutron-api
+    juju add-relation astara-neutron-api keystone
+    juju add-relation astara-neutron-api glance
+    juju add-relation astara-orchestrator nova-compute
+    juju add-relation astara-orchestrator astara-neutron-api
 
-If the charm has any recommendations for running at scale, outline them in examples here. For example if you have a memcached relation that improves performance, mention it here.
-
-
-This not only helps users but gives people a place to start if they want to help you add features to your charm.
+After a successful deployment, you should note that a Neutron tenant network has been created for use by Astara and at least one appliance image has been published into Glance.
 
 # Configuration
 
-The configuration options will be listed on the charm store, however If you're making assumptions or opinionated decisions in the charm (like setting a default administrator password), you should detail that here so the user knows how to change it immediately, etc.
+The charm follows the rest of the OpenStack charm standards as far as configuring installation sources via the openstack-origin or openstack-origin-git settings.
+
+The management-network-cidr and management-network-name configure the name and CIDR for the management tenant network.  This is a isolated Neutron tenant network scoped to the service tenant, which Astara uses to communicate between its orchestration service and appliance VMs.
+
+The external-network-cidr and external-network-name should match an existing external network created in Neutron, or specify the values for one to be created.
+
+astara-router-appliance-url is set to a URL location of a built Astara appliance VM image.  The default is the tip-of-trunk image that is archived as a build artifact upstream.  You should ensure the URL configured here is accessible by the charm via http-proxy or local mirror.
 
 # Contact Information
 
-Though this will be listed in the charm store itself don't assume a user will know that, so include that information here:
-
-
-- Upstream website
-- Upstream bug tracker
-- Upstream mailing list or contact information
-- Feel free to add things if it's useful for users
+Astara: https://wiki.openstack.org/wiki/Astara
+Akanda, Inc: http://akanda.io
+Charm Maintainer and upstream PTL: Adam Gandelman <adamg@ubuntu.com>

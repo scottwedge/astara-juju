@@ -24,25 +24,19 @@ from charmhelpers.contrib.openstack import context, templating
 from charmhelpers.contrib.python.packages import pip_install
 from charmhelpers.core.templating import render
 
-from charmhelpers.contrib.openstack.utils import (
-    git_install_requested,
-)
 
 from charmhelpers.core.host import (
     adduser,
     add_group,
     add_user_to_group,
     mkdir,
-    service_stop,
-    service_start,
-    service_restart,
     write_file,
 )
+
 
 from charmhelpers.contrib.openstack.utils import (
     git_install_requested,
     git_clone_and_install,
-    git_src_dir,
     git_yaml_value,
     git_pip_venv_dir,
 )
@@ -101,6 +95,7 @@ def resource_map():
     ])
     return rm
 
+
 def restart_map():
     return OrderedDict([(cfg, v['services'])
                         for cfg, v in resource_map().iteritems()])
@@ -112,7 +107,6 @@ def register_configs(release=None):
     for cfg, rscs in resource_map().iteritems():
         configs.register(cfg, rscs['contexts'])
     return configs
-
 
 
 def git_install(projects_yaml):
@@ -165,7 +159,7 @@ def git_post_install(projects_yaml):
         os.symlink(src, link)
 
     bin_dir = os.path.join(git_pip_venv_dir(projects_yaml), 'bin')
-    glance_api_context = {
+    astara_orchestrator_context = {
         'service_description': 'Astara Network Service Function Orchestrator',
         'service_name': 'Astara',
         'user_name': 'astara',
@@ -180,7 +174,8 @@ def git_post_install(projects_yaml):
     templates_dir = 'hooks/charmhelpers/contrib/openstack/templates'
     templates_dir = os.path.join(charm_dir(), templates_dir)
     render('git.upstart', '/etc/init/astara-orchestrator.conf',
-           glance_api_context, perms=0o644, templates_dir=templates_dir)
+           astara_orchestrator_context, perms=0o644,
+           templates_dir=templates_dir)
 
 
 def migrate_database():

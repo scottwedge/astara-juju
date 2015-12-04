@@ -29,7 +29,7 @@ options:
       packages will be installed from source rather than from the
       openstack-origin repository.
   openstack-origin-git:
-    default:
+    default: ''
     type: string
     description: |
       Specifies a YAML-formatted dictionary listing the git
@@ -40,22 +40,6 @@ options:
       the OpenStack release of the openstack-origin option.
 
       For more details see README.md.
-  database-user:
-    default: astara
-    type: string
-    description: Username for database access
-  database:
-    default: astara
-    type: string
-    description: Database name
-  rabbit-user:
-    default: glance
-    type: string
-    description: Username to request access on rabbitmq-server.
-  rabbit-vhost:
-    default: openstack
-    type: string
-    description: RabbitMQ virtual host to request access on rabbitmq-server.
   region:
     default: RegionOne
     type: string
@@ -70,6 +54,7 @@ options:
     description: The name of the Astara management tenant network to create
   external-network-cidr:
     default: '172.16.77.0/24'
+    type: string
     description: IPv4 or IPv6 network CIDR for the external network.
   external-network-name:
     default: astara-ext
@@ -78,4 +63,4 @@ options:
   astara-router-appliance-url:
     default: http://tarballs.openstack.org/akanda-appliance/images/akanda_appliance.qcow2
     type: string
-    decscription: The URL of the Astara router appliance image to be published into Glance.
+    description: The URL of the Astara router appliance image to be published into Glance.

@@ -19,8 +19,8 @@ from charmhelpers.core.hookenv import (
     relation_get,
     log,
 )
-from charmhelpers.contrib.openstack import context
 
+from charmhelpers.contrib.openstack import context
 
 
 class AstaraOrchestratorContext(context.OSContextGenerator):

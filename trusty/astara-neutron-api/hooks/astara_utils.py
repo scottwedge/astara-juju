@@ -16,20 +16,13 @@ import json
 import netaddr
 import os
 import subprocess
+import time
 
 from collections import OrderedDict
 
 from charmhelpers.contrib.openstack import context, templating
 
-import astara_context
-
-from charmhelpers.contrib.openstack.utils import (
-    git_install_requested,
-)
-
-
 from charmhelpers.core.hookenv import (
-    charm_dir,
     config,
     log as juju_log,
     relation_ids,
@@ -37,31 +30,14 @@ from charmhelpers.core.hookenv import (
     related_units,
 )
 
-from charmhelpers.core.host import (
-    adduser,
-    add_group,
-    add_user_to_group,
-    mkdir,
-    service_stop,
-    service_start,
-    service_restart,
-    write_file,
-)
-
-
 from charmhelpers.contrib.openstack.utils import (
     git_install_requested,
     git_clone_and_install,
-    git_src_dir,
-    git_yaml_value,
     git_pip_venv_dir,
 )
 
-from charmhelpers.contrib.python.packages import pip_install
 
-from charmhelpers.core.templating import render
-
-
+CLIENT_RETRY_MAX = 20
 TEMPLATES = 'templates/'
 ASTARA_NETWORK_CACHE = '/var/lib/juju/astara-network-cache.json'
 GLANCE_IMG_ID_CACHE = '/var/lib/juju/astara-applinace-image-cache'
@@ -90,14 +66,12 @@ def determine_packages():
 def validate_config():
     mgt_net = config('management-network-cidr')
     try:
-        net = netaddr.IPNetwork(mgt_net)
+        netaddr.IPNetwork(mgt_net)
     except netaddr.core.AddrFormatError as e:
-        m = (
-            'Invalid network CIDR configured for management-network-cidr: %s'
-             % mgt_net
-        )
+        m = ('Invalid network CIDR configured for management-network-cidr: %s'
+             % mgt_net)
         juju_log(m)
-        raise  Exception(m)
+        raise e
 
 
 def register_configs(release=None):
@@ -119,12 +93,6 @@ def git_install(projects_yaml):
     """Perform setup, and install git repos specified in yaml parameter."""
     if git_install_requested():
         git_clone_and_install(projects_yaml, core_project='astara-neutron')
-
-
-def migrate_database():
-    """Runs astara-dbsync to initialize a new database or migrate existing"""
-    cmd = ['astara-dbsync', '--config-file', ASTARA_CONFIG, 'upgrade']
-    subprocess.check_call(cmd)
 
 
 def _auth_args():
@@ -168,13 +136,13 @@ def get_or_create_network(client, name, external=False):
 
     res = client.create_network(net_dict)['network']
     juju_log('- created new network: %s( net_id: %s)' %
-        (res['name'], res['id']))
+             (res['name'], res['id']))
 
     return res
 
 
 def get_or_create_subnet(client, cidr, network_id):
-    juju_log('get_or_create_subnet: %s (net: %s)'  % (cidr, network_id))
+    juju_log('get_or_create_subnet: %s (net: %s)' % (cidr, network_id))
     for sn in client.list_subnets(network_id=network_id)['subnets']:
         if sn['cidr'] == cidr:
             juju_log('- found existing subnet: %s' % sn['id'])
@@ -204,6 +172,11 @@ def get_or_create_subnet(client, cidr, network_id):
 
 
 def _api_ready(relation, key):
+    """Determines whether remote API service is ready.
+
+    Inspects relation data to see if remote service advertises it's API service
+    as ready via relation settings.
+    """
     ready = 'no'
     for rid in relation_ids(relation):
         for unit in related_units(rid):
@@ -217,6 +190,35 @@ def is_neutron_api_ready():
 
 def is_glance_api_ready():
     return _api_ready('image-service', 'glance-api-ready')
+
+
+def ensure_client_connectivity(f):
+    """Ensure a client can successfully call the server's API
+    This is needed because remote service restarts are async. This could
+    be removed if we can make restart_on_change() take an optional post-restart
+    action it executes to ensure API is up before considering it restarted.
+
+    :param f: A callable from a fully instantiated/configured client
+              lib.
+    """
+    i = 0
+    while i <= CLIENT_RETRY_MAX:
+        try:
+            f()
+            juju_log(
+                'Confirmed remote API connectivity /w %s after %s attempts' %
+                (f, i))
+            return
+        except Exception as e:
+            juju_log(
+                'Failed to connect to remote API /w %s, retrying (%s/%s): %s' %
+                (i, CLIENT_RETRY_MAX, e))
+            i += 1
+            time.sleep(1)
+
+    raise Exception(
+        'Failed to connect to remote API /w %s after %s retries.' %
+        (f, CLIENT_RETRY_MAX))
 
 
 def create_networks():
@@ -236,12 +238,12 @@ def create_networks():
     if not auth_args:
         return
     client = NeutronClient.Client(**auth_args)
+    ensure_client_connectivity(client.list_networks)
 
-    mgt_net  = (
+    mgt_net = (
         config('management-network-cidr'), config('management-network-name'))
-    ext_net  = (
+    ext_net = (
         config('external-network-cidr'), config('external-network-name'))
-
 
     networks = []
     subnets = []
@@ -268,6 +270,7 @@ def create_networks():
 
     return net_data
 
+
 def get_keystone_session(auth_args):
     from keystoneclient import auth as ksauth
     from keystoneclient import session as kssession
@@ -287,20 +290,25 @@ def get_glanceclient(auth_args):
     ks_session = get_keystone_session(auth_args)
     return Client(session=ks_session)
 
+
 def get_appliance_image(img_loc):
     juju_log('Downloading astara appliance from %s' % img_loc)
+    img_name = img_loc.split('/')[-1]
     subprocess.check_output([
         'wget', '-O', '/tmp/%s' % img_name, img_loc
     ])
+
 
 def _cache_img(img):
     with open(GLANCE_IMG_ID_CACHE, 'w') as out:
         out.write(img['id'])
 
+
 def appliance_image():
     img_loc = config('astara-router-appliance-url')
     img_name = img_loc.split('/')[-1]
     return img_name, img_loc
+
 
 def publish_astara_appliance_image():
     """Downloads and publishes the appliance image into Glance
@@ -320,6 +328,7 @@ def publish_astara_appliance_image():
     if not auth_args:
         return
     client = get_glanceclient(auth_args)
+    ensure_client_connectivity(client.images.list)
 
     img_name, img_loc = appliance_image()
 
@@ -376,11 +385,12 @@ def get_network(net_type='management'):
             network = net
     for snet in net_data['subnets']:
         if snet['cidr'] == subnet_cidr:
-            subnet =  snet
+            subnet = snet
     return {
         'network': network,
         'subnet': subnet,
     }
+
 
 def api_extensions_path():
     """Return need the full path to the installation of neutron API extensions
@@ -399,10 +409,8 @@ def api_extensions_path():
     ext_path = os.path.join(os.path.dirname(module_path), 'extensions')
 
     if not os.path.isdir(ext_path):
-        m = (
-            'Could not locate astara-neutron API extensions directory @ %s' %
-            ext_path
-        )
+        m = ('Could not locate astara-neutron API extensions directory @ %s' %
+             ext_path)
         juju_log(m, 'ERROR')
         raise Exception(m)
 

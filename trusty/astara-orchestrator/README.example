@@ -1,0 +1,48 @@
+# Overview
+
+This charm provides the astara-orchestrator component of the Astara network orchestration service for OpenStack clouds.
+
+Astara aims to simplify networking in OpenStack clouds by removing the need for complex controllers and gateway nodes, offloading routing, loadbalancing and other advanced networking serivces onto
+the cloud itself.  It does this by virtualizing network functions and orchestrating them as VNFs running on Nova.  For more information see https://wiki.openstack.org/wiki/Astara.
+
+# Usage
+
+This charm is a subordinate to the nova-compute charm.  It also requires the deploynment of the astara-neutron-api subordinate charm alongside neutron-api.  It eliminates the need for
+the neutron-gateway charm as routing L3 routing is now handled by the compute tier.
+
+The astara-orchestrator charm has two core functions:
+
+    * Creates, initializes and manages the astara-orchestrator database.
+    * Creates and configues service endpoint keystone.
+    * Configures access to the message queue.
+    * Configures and runs the astara-orchestrator service.
+
+Step by step instructions on using the charm.  This assumes the keystone, neutron-api, glance services have already been deployed.
+
+    juju deploy astara-neutron-api
+    juju deploy astara-orchestrator
+    juju add-relation astara-orchestrator nova-compute
+    juju add-relation astara-orchestrator mysql
+    juju add-relation astara-orchestrator rabbitmq-server
+    juju add-relation astara-orchestrator keystone
+    juju add-relation astara-orchestrator astara-neutron-api
+    juju add-relation astara-neutron-api neutron-api
+    juju add-relation astara-neutron-api keystone
+    juju add-relation astara-neutron-api glance
+
+After a successful deployment, the astara-orchestrator should be running on your nova-compute nodes.
+
+TODO: We need to add support for a zookeeper relation to provide the cluster coordination.
+The astara-orchestrator is designed to scale out horizontally for purposes of load-distribution and availability.  This being a subordinate charm, adding units of nova-compute
+will also add units of astara-orchestrator.  As these new units spawn new instances of the service, they will automatically cluser with among themselves and begin distributing
+load across the peers.
+
+# Configuration
+
+The charm follows the rest of the OpenStack charm standards as far as configuring installation sources via the openstack-origin or openstack-origin-git settings. It also uses the standard options for configuring database and message queue user and resource names.
+
+# Contact Information
+
+Astara: https://wiki.openstack.org/wiki/Astara
+Akanda, Inc: http://akanda.io
+Charm Maintainer and upstream PTL: Adam Gandelman <adamg@ubuntu.com>

@@ -28,7 +28,6 @@ from charmhelpers.core.hookenv import (
     local_unit,
     relation_get,
     relation_set,
-    status_set,
     unit_get,
     UnregisteredHookError,
 )
@@ -85,7 +84,6 @@ def db_changed():
     CONFIGS.write(ASTARA_CONFIG)
 
     # XXX (This is where leadership election will go)
-    #if is_elected_leader(CLUSTER_RES):
     if True:
         # Bugs 1353135 & 1187508. Dbs can appear to be ready before the units
         # acl entry has been added. So, if the db supports passing a list of
@@ -97,6 +95,7 @@ def db_changed():
         else:
             juju_log('allowed_units either not presented, or local unit '
                      'not in acl list: %s' % allowed_units)
+
 
 @hooks.hook('identity-service-relation-joined')
 def keystone_joined(relation_id=None):
@@ -122,8 +121,6 @@ def keystone_changed():
         return
 
     CONFIGS.write(ASTARA_CONFIG)
-
-    #configure_https()
 
 
 @hooks.hook('amqp-relation-joined')
@@ -160,29 +157,25 @@ def config_changed():
 
     if git_install_requested():
         if config_value_changed('openstack-origin-git'):
-            status_set('maintenance', 'Running Git install')
             git_install(config('openstack-origin-git'))
 
-    status_set('maintenance', 'Configuring Astara')
     CONFIGS.write_all()
+
 
 @hooks.hook('install')
 def install():
-    status_set('maintenance', 'Installing Dependencies')
     apt_update(fatal=True)
     apt_install(determine_packages(), fatal=True)
     if git_install_requested():
-        status_set('maintenance', 'Installing Astara (via git)')
         git_install(config('openstack-origin-git'))
+
 
 def main():
     try:
         hooks.execute(sys.argv)
     except UnregisteredHookError as e:
         juju_log('Unknown hook {} - skipping.'.format(e))
-#    set_os_workload_status(CONFIGS, REQUIRED_INTERFACES,
-#                           charm_func=check_optional_relations)
-#
+
 
 if __name__ == '__main__':
     main()

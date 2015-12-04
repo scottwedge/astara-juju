@@ -71,6 +71,7 @@ services:
     charm: local:trusty/nova-compute
     options:
       openstack-origin: cloud:trusty-liberty
+      virt-type: qemu
     to:
     - 2
 

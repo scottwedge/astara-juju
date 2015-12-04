@@ -1,0 +1,3 @@
+* Tests
+* Relation to zookeeper for clustering
+* Integration with hacluster to provide a VIP for the API service running, HTTPS
