@@ -1,3 +1,19 @@
+# I've been using this to develop locally on a single machine, using a mix of KVM
+# and LXC.  KVM Machine 1 hosts a bunch of LXC's for APIs, DB, etc.,
+# machine 2 runs nova-compute + astara-orchestrator directly on the VM.
+#
+# Prior to running juju-deployer, I bootstrap /w local provider and container: kvm,
+# manually create the 2 machiens (I'm limited to 8GB on my dev box):
+#
+# juju add-machine --constraints "mem=4G cpu-cores=2 root-disk=25G" 
+# juju add-machine --constraints "mem=2G cpu-cores=2 root-disk=25G" 
+#
+# Setup lxc bridges among them:
+# python ./setup_lxc_bridges.py
+#
+# Deploy:
+# juju-deployer -c bundle.yaml
+
 machines:
   0:
     series: trusty
