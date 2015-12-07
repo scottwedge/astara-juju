@@ -212,7 +212,7 @@ def ensure_client_connectivity(f):
         except Exception as e:
             juju_log(
                 'Failed to connect to remote API /w %s, retrying (%s/%s): %s' %
-                (i, CLIENT_RETRY_MAX, e))
+                (f, i, CLIENT_RETRY_MAX, e))
             i += 1
             time.sleep(1)
 
