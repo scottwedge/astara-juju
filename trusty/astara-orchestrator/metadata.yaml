@@ -24,6 +24,10 @@ requires:
     interface: rabbitmq
   identity-service:
     interface: keystone
+  zookeeper:
+    interface: zookeeper
+  memcached:
+    interface: cache
 peers:
   cluster:
     interface: astara-ha

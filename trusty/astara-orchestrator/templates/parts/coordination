@@ -1,0 +1,10 @@
+{% if coordination_enabled -%}
+[coordination]
+enabled = True
+url = {{ coordination_url }}
+group_id = astara
+heartbeat_interval = 1
+{% else -%}
+[coordination]
+enabled = False
+{% endif -%}

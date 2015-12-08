@@ -162,6 +162,12 @@ def config_changed():
     CONFIGS.write_all()
 
 
+@hooks.hook('zookeeper-relation-departed')
+@hooks.hook('zookeeper-relation-changed')
+def zookeeper_changed():
+    CONFIGS.write_all()
+
+
 @hooks.hook('install')
 def install():
     apt_update(fatal=True)

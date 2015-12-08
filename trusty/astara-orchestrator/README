@@ -32,10 +32,18 @@ Step by step instructions on using the charm.  This assumes the keystone, neutro
 
 After a successful deployment, the astara-orchestrator should be running on your nova-compute nodes.
 
-TODO: We need to add support for a zookeeper relation to provide the cluster coordination.
-The astara-orchestrator is designed to scale out horizontally for purposes of load-distribution and availability.  This being a subordinate charm, adding units of nova-compute
-will also add units of astara-orchestrator.  As these new units spawn new instances of the service, they will automatically cluser with among themselves and begin distributing
-load across the peers.
+If you plan to run multiple units of nova-compute, you'll end up running multiple units of the astara-orchestrator service as well.
+The service is designed to scale out with the help of an external coordination service, provided via the tooz library. The preferred
+coordination service is zookeeper, but memcached may be used for dev/testing.  To enable astara-orchestrator clustering, also deploy
+the coordination service and add an additional relation to astara-orchestrator:
+
+    juju deploy zookeeper
+    juju add-relation zookeeper astara-orchestrator
+
+    OR (for testing only)
+
+    juju deploy memcached
+    juju add-relatno memcached astara-orchestrator
 
 # Configuration
 
