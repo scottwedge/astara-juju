@@ -39,12 +39,15 @@ from charmhelpers.core.hookenv import (
 from astara_utils import (
     api_extensions_path,
     appliance_image_uuid,
+    appliance_flavor_id,
     create_networks,
+    create_astara_nova_flavor,
     determine_packages,
     get_network,
     git_install,
     is_glance_api_ready,
     is_neutron_api_ready,
+    is_nova_api_ready,
     publish_astara_appliance_image,
     register_configs,
     validate_config,
@@ -147,15 +150,25 @@ def image_service_relation_changed():
         astara_orchestrator_relation_joined(rid)
 
 
+@hooks.hook('nova-api-relation-changed')
+def nova_api_relation_changed():
+    if not is_nova_api_ready():
+        return
+    create_astara_nova_flavor()
+    for rid in relation_ids('astara-orchestrator'):
+        astara_orchestrator_relation_joined(rid)
+
+
 @hooks.hook('astara-orchestrator-relation-joined')
 def astara_orchestrator_relation_joined(rid=None):
     # Inform the orchestrator about the neutron networks and glance images
     appliance_image = appliance_image_uuid()
     mgt_net_data = get_network('management') or {}
-    if not appliance_image or not mgt_net_data:
+    flavor_id = appliance_flavor_id()
+    if not appliance_image or not mgt_net_data or not flavor_id:
         juju_log(
-            'No published image or created networks to advertise to '
-            'astara-orchestrator.')
+            'No published image, created networks or created flavors to '
+            'advertise to astara-orchestrator.')
         return
 
     mgt_net_data = get_network('management') or {}
@@ -183,6 +196,7 @@ def astara_orchestrator_relation_joined(rid=None):
         'external_subnet_id': ext_subnet.get('id'),
         'external_prefix': ext_subnet.get('cidr'),
         'router_image_uuid': appliance_image,
+        'appliance_flavor_id': flavor_id,
     }
     relation_set(relation_id=rid, **relation_data)
 

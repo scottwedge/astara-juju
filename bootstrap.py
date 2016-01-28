@@ -6,6 +6,7 @@ import sys
 import time
 
 READY_TIMEOUT = 340
+ENV = 'astara'
 
 
 def status():
@@ -13,7 +14,7 @@ def status():
 
 
 try:
-    subprocess.check_call(['juju', 'bootstrap', '-e', 'local'])
+    subprocess.check_call(['juju', 'bootstrap', '-e', ENV])
 except:
     pass
 

@@ -41,6 +41,9 @@ CLIENT_RETRY_MAX = 20
 TEMPLATES = 'templates/'
 ASTARA_NETWORK_CACHE = '/var/lib/juju/astara-network-cache.json'
 GLANCE_IMG_ID_CACHE = '/var/lib/juju/astara-applinace-image-cache'
+NOVA_FLAVOR_ID_CACHE = '/var/lib/juju/astara-applinace-flavor-cache'
+
+ASTARA_FLAVOR_NAME = 'astara'
 
 BASE_GIT_PACKAGES = [
     'libffi-dev',
@@ -56,6 +59,7 @@ BASE_GIT_PACKAGES = [
     'python-neutronclient',
     'python-keystoneclient',
     'python-glanceclient',
+    'python-novaclient',
 ]
 
 
@@ -192,6 +196,10 @@ def is_glance_api_ready():
     return _api_ready('image-service', 'glance-api-ready')
 
 
+def is_nova_api_ready():
+    return _api_ready('nova-api', 'nova-api-ready')
+
+
 def ensure_client_connectivity(f):
     """Ensure a client can successfully call the server's API
     This is needed because remote service restarts are async. This could
@@ -285,6 +293,17 @@ def get_keystone_session(auth_args):
     return kssession.Session(auth=auth)
 
 
+def get_novaclient(auth_args):
+    from novaclient import client
+    ks_session = get_keystone_session(auth_args)
+    nc = client.Client(
+        version='2',
+        session=ks_session,
+        region_name=config('region'),
+    )
+    return nc
+
+
 def get_glanceclient(auth_args):
     from glanceclient.v2.client import Client
     ks_session = get_keystone_session(auth_args)
@@ -364,6 +383,42 @@ def appliance_image_uuid():
         return open(GLANCE_IMG_ID_CACHE).read().strip()
     else:
         return publish_astara_appliance_image()
+
+
+def create_astara_nova_flavor():
+    """Gets or creates the astara appliance nova flavor
+
+    Get or create the nova flavor for the appliance. Cache it
+    locally and return its id.
+
+    :returns: str id of the nova flavor
+    """
+    auth_args = _auth_args()
+    if not auth_args:
+        return
+    novaclient = get_novaclient(auth_args)
+    existing = [f for f in novaclient.flavors.list()
+                if f.name == ASTARA_FLAVOR_NAME]
+    if existing:
+        flavor = existing[0]
+    else:
+        flavor = novaclient.flavors.create(
+            name=ASTARA_FLAVOR_NAME,
+            ram=config('astara-appliance-flavor-ram'),
+            disk=config('astara-appliance-flavor-disk'),
+            vcpus=config('astsara-appliance-flavor_cpu'),
+        )
+    with open(NOVA_FLAVOR_ID_CACHE, 'w') as out:
+        out.write(flavor.id)
+
+    return flavor.id
+
+
+def appliance_flavor_id():
+    if os.path.isfile(NOVA_FLAVOR_ID_CACHE):
+        return open(NOVA_FLAVOR_ID_CACHE).read().strip()
+    else:
+        return create_astara_nova_flavor()
 
 
 def get_network(net_type='management'):

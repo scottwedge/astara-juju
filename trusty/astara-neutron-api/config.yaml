@@ -64,3 +64,15 @@ options:
     default: http://tarballs.openstack.org/akanda-appliance/images/akanda_appliance.qcow2
     type: string
     description: The URL of the Astara router appliance image to be published into Glance.
+  astara-appliance-flavor-ram:
+    default: 512
+    type: int
+    description: Ammount of RAM (MB) for the appliance VM's Nova flavor
+  astara-appliance-flavor-cpu:
+    default: 1
+    type: int
+    description: Number of CPUs  for the appliance VM's Nova flavor
+  astara-appliance-flavor-disk:
+    default: 2
+    type: int
+    description: Ammount of disk (GB) for the appliance VM's Nova flavor

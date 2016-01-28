@@ -33,6 +33,7 @@ class AstaraOrchestratorContext(context.OSContextGenerator):
         'management_subnet_id',
         'management_prefix',
         'router_image_uuid',
+        'appliance_flavor_id',
     ]
 
     def _coordinator_context(self):

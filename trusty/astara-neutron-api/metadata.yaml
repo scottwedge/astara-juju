@@ -26,6 +26,8 @@ requires:
     interface: keystone
   image-service:
     interface: glance
+  nova-api:
+    interface: nova-api
   astara-orchestrator:
     interface: astara-orchestrator
   network-notifications:

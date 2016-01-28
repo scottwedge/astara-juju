@@ -60,3 +60,7 @@ options:
     default: RegionOne
     type: string
     description: OpenStack Region
+  appliance-flavor-id:
+    default: "2"
+    type: string
+    description: The ID or name of Nova flavor to use when booting appliance images

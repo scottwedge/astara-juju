@@ -3,5 +3,5 @@ repositories:
    repository: 'git://github.com/openstack/requirements',
    branch: stable/liberty}
 - {name: astara,
-   repository: 'git://github.com/openstack/astara',
+   repository: 'git://github.com/gandelman-a/astara',
    branch: stable/liberty}
