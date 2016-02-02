@@ -77,6 +77,16 @@ def validate_config():
         juju_log(m)
         raise e
 
+    for i in ['astara-appliance-flavor-ram',
+              'astara-appliance-flavor-cpu',
+              'astara-appliance-flavor-disk']:
+        try:
+            v = config(i)
+            int(v)
+        except ValueError as e:
+            juju_log('Invalid config %s=%s, must be integer value')
+            raise e
+
 
 def register_configs(release=None):
     resources = OrderedDict([
@@ -404,9 +414,9 @@ def create_astara_nova_flavor():
     else:
         flavor = novaclient.flavors.create(
             name=ASTARA_FLAVOR_NAME,
-            ram=config('astara-appliance-flavor-ram'),
-            disk=config('astara-appliance-flavor-disk'),
-            vcpus=config('astsara-appliance-flavor_cpu'),
+            ram=int(config('astara-appliance-flavor-ram')),
+            disk=int(config('astara-appliance-flavor-disk')),
+            vcpus=int(config('astara-appliance-flavor-cpu')),
         )
     with open(NOVA_FLAVOR_ID_CACHE, 'w') as out:
         out.write(flavor.id)

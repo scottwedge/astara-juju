@@ -162,7 +162,7 @@ def git_post_install(projects_yaml):
     astara_orchestrator_context = {
         'service_description': 'Astara Network Service Function Orchestrator',
         'service_name': 'Astara',
-        # NOTE(adam_g): need to run as root untiul oslo.rootwrap integration
+        # NOTE(adam_g): need to run as root until oslo.rootwrap integration
         # is added:
         # https://blueprints.launchpad.net/astara/+spec/astara-rootwrap
         'user_name': 'root',

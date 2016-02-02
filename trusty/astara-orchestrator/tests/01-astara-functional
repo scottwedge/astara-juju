@@ -1,0 +1,3 @@
+#!/bin/bash
+
+nosetests -svx $(dirname $0)/functional/
