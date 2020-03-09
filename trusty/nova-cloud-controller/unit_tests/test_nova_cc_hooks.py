@@ -374,7 +374,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.test_config.set('os-public-hostname', 'ncc.example.com')
         hooks.identity_joined()
 
-        self.determine_endpoints.asssert_called_with(
+        self.determine_endpoints.assert_called_with(
             public_url='http://ncc.example.com',
             internal_url='http://127.0.0.1',
             admin_url='http://127.0.0.1'

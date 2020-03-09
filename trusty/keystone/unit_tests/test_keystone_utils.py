@@ -384,7 +384,7 @@ class TestKeystoneUtils(CharmTestCase):
             'nova',
             'compute',
             'Nova Compute Service')
-        self.create_endpoint_template.asssert_called_with(
+        self.create_endpoint_template.assert_called_with(
             region='RegionOne', service='nova',
             publicurl=publicurl, adminurl=adminurl,
             internalurl=internalurl)
